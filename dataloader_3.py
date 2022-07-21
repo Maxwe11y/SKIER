@@ -12,7 +12,12 @@ from transformers import AlbertTokenizer
 from transformers import RobertaTokenizer
 import json
 from senticnet.senticnet import SenticNet
+from configs import inputconfig_func
+Configs = inputconfig_func()
 
+torch.random.manual_seed(1234)
+torch.cuda.manual_seed(1234)
+torch.manual_seed(1234)
 
 def tokenize(data, tokenizer, MAX_L=20, model_type='albert'):
     input_ids = {}
@@ -61,7 +66,7 @@ def prepare_graph(structure):
     return src, dst, edge_type
 
 
-def gen_cpt_vocab(sn):
+def gen_cpt_vocab(sn, dst_num_per_rel=Configs.dst_num_per_rel):
     cpt_vocab = ['<pad>']
     rel_list = ['isa', 'causes', 'hascontext']
     dicts = []
@@ -81,7 +86,7 @@ def gen_cpt_vocab(sn):
                 except KeyError:
                     dst_.append([item[0], weights_scaled[idx], 0.])
             dst_.sort(key =lambda i: i[1]+i[2], reverse=True)
-            l_idx = min(len(dst_), 2)
+            l_idx = min(len(dst_), dst_num_per_rel)
             rel_dict[key] = dst_[0:l_idx]
 
         keys = rel_dict.keys()
@@ -122,7 +127,8 @@ def tok_cpt_vocab(tokenizer, cpt_vocab, cuda=False):
     return pad_cpt_ids
 
 
-def gen_cpt_graph(text, cpt_vocab, isa_dict, causes_dict, hscnt_dict, sn, src_num=4, dst_num=6):
+# dst_num = num_rel * dst_num_per_rel
+def gen_cpt_graph(text, cpt_vocab, isa_dict, causes_dict, hscnt_dict, sn, src_num=Configs.src_num, dst_num=Configs.dst_num_per_rel*3):
     graph = {}
     keys = text.keys()
 
@@ -242,7 +248,7 @@ def gen_cpt_graph(text, cpt_vocab, isa_dict, causes_dict, hscnt_dict, sn, src_nu
     return graph
 
 
-def get_chunk(cpt_graph_i, cpt_ids, model_type='albert', chunk_size=10, dst_num=6):
+def get_chunk(cpt_graph_i, cpt_ids, model_type='albert', chunk_size=10, dst_num=Configs.dst_num_per_rel*3):
 
     srcs, dsts, weights, sentics, src_masks, masks, rels = cpt_graph_i
     if masks.sum() == 0:
@@ -351,7 +357,7 @@ def cpt_graph(text, cpt_vocab, rel_dict_ids, sn, MAX_L=20):
                     # sentic_.append(sentic_scaled)
                     sentic_.append(sentic)
             src.sort(key = lambda i: i[1], reverse=True)
-            l_idx = min(len(src), 4)
+            l_idx = min(len(src), Configs.src_num)
             srcs.append([[item[0]] for item in src[:l_idx]])
 
             dsts.append(dst_)
