@@ -109,9 +109,9 @@ class Model(nn.Module):
             utt_ids = torch.cat((pre_pad, torch.arange(len_dial)))
             relatt_ids = utt_ids.unfold(0, self.slide_win + 1, 1)
             batch_input = out_[relatt_ids].unsqueeze(1)  # batch, channel(1), seq_len, dim
-            relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
+            # relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
             # use the average vectors instead of the slide_win th vector
-            # relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
+            relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
 
         # process concept
         output_ = []

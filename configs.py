@@ -35,7 +35,7 @@ def inputconfig_func():
     parser.add_argument('--num_bases', type=int, default=2, help='number of bases of RGCN')
     parser.add_argument('--lamb', type=float, default=0.5, help='a trade-off hyperparameter')
     parser.add_argument('--num_features', type=int, default=4, help='number of features used in the model')
-    parser.add_argument('--use_future_utt', action='store_true', default=True, help='use future utterances or not')
+    parser.add_argument('--use_future_utt', action='store_true', default=False, help='use future utterances or not')
     parser.add_argument('--use_dot_att', action='store_true', default=False, help='use dot attention or item attention')
     parser.add_argument('--src_num', type=int, default=4, help='number of words for source sentence')
     parser.add_argument('--dst_num_per_rel', type=int, default=2, help='number of destination words per '
