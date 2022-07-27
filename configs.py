@@ -8,7 +8,7 @@ import argparse
 
 def inputconfig_func():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cuda', action='store_true', default=True, help='use GPU acceleration or not')
+    parser.add_argument('--cuda', action='store_false', default=True, help='use GPU acceleration or not')
     parser.add_argument('--lr', type=float, default=0.00005, metavar='LR', help='learning rate')
     parser.add_argument('--base_lr', type=float, default=0.000005, metavar='BLR', help='learning rate for base model')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
@@ -17,7 +17,7 @@ def inputconfig_func():
     parser.add_argument('--att_dropout', type=float, default=0.10, metavar='attdropout', help='dropout rate for '
                                                                                               'relative attention')
     parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
-    parser.add_argument('--chunk_size', type=int, default=4, metavar='CS', help='chunk size')
+    parser.add_argument('--chunk_size', type=int, default=10, metavar='CS', help='chunk size')
     parser.add_argument('--epochs', type=int, default=10, metavar='E', help='number of epochs')
     parser.add_argument('--input_dim', type=int, default=100, metavar='D', help='input dimension')
     parser.add_argument('--output_dim', type=int, default=768, metavar='O', help='output dimension of pretrained model')
@@ -36,10 +36,16 @@ def inputconfig_func():
     parser.add_argument('--lamb', type=float, default=0.5, help='a trade-off hyperparameter')
     parser.add_argument('--num_features', type=int, default=4, help='number of features used in the model')
     parser.add_argument('--use_future_utt', action='store_true', default=False, help='use future utterances or not')
-    parser.add_argument('--use_dot_att', action='store_true', default=False, help='use dot attention or item attention')
+    parser.add_argument('--att_type', type=str, default='dot_att', help='attention type, dot-att, linear_att and item_att')
     parser.add_argument('--src_num', type=int, default=4, help='number of words for source sentence')
     parser.add_argument('--dst_num_per_rel', type=int, default=2, help='number of destination words per '
                                                                        'relation per src word')
+    parser.add_argument('--model_path', type=str, default='./model/', help='path of saved model')
+    parser.add_argument('--glove_path', type=str, default='./glove/', help='path of glove embeddings')
+    parser.add_argument('--freeze_bert', action='store_true', default=False, help='freeze parameters of bert encoder')
+    parser.add_argument('--freeze_glove', action='store_true', default=False, help='freeze parameters of GloVe vectors')
+    parser.add_argument('--fine_tune', action='store_true', default=False, help='fine tune the model or not')
+    parser.add_argument('--use_layer_norm', action='store_true', default=False, help='use layer norm before activation function or not')
     parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
 
     return parser.parse_args()

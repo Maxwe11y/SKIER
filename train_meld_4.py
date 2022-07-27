@@ -20,6 +20,8 @@ from model_4 import Model
 from transformers import get_linear_schedule_with_warmup
 import numpy
 import random
+import warnings
+warnings.filterwarnings("ignore")
 
 np.random.seed(1234)
 torch.random.manual_seed(1234)
@@ -192,6 +194,24 @@ def train_or_eval_model(model, loss_Func, dataloader, epoch, optimizer=None, sch
     return avg_loss, avg_accuracy, labels, preds, masks, avg_fscore, class_report
 
 
+
+def configure_optimizers(configs, model):
+    params = list(model.named_parameters())
+
+    def is_backbone(n): return 'bert' in n
+
+    grouped_parameters = [
+        {"params": [p for n, p in params if is_backbone(n)], 'lr': configs.base_lr},
+        {"params": [p for n, p in params if not is_backbone(n)], 'lr': configs.lr},
+    ]
+
+    optimizer = torch.optim.AdamW(
+        grouped_parameters, lr=configs.lr, weight_decay=configs.l2
+    )
+
+    return optimizer
+
+
 if __name__ == '__main__':
 
     Configs = inputconfig_func()
@@ -235,38 +255,33 @@ if __name__ == '__main__':
 
 
     model = Model(cpt_ids, Configs=Configs, cuda_=cuda_)
+    if cuda_:
+        model.cuda()
+    optimizer = configure_optimizers(configs=Configs, model=model)
+
+    # load saved model
+    if Configs.fine_tune:
+        checkpoint = torch.load(Configs.model_path + 'model_4.pth')
+        model.load_state_dict(checkpoint['net'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        start_epoch = checkpoint['epoch'] + 1
+        optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * 0.5
+        optimizer.param_groups[1]['lr'] = optimizer.param_groups[1]['lr'] * 0.5
+
     num_params = 0
     for param in model.parameters():
         num_params += param.numel()
     print(num_params / 1e6)
 
-    if cuda_:
-        model.cuda()
+    # if cuda_:
+    #     model.cuda()
 
     if Configs.class_weight:
         loss_function = MaskedNLLLoss(loss_weights.cuda() if cuda_ else loss_weights)
     else:
         loss_function = MaskedNLLLoss()
 
-    # optimizer = optim.Adam(model.parameters(), lr=Configs.lr, weight_decay=Configs.l2)
 
-    def configure_optimizers(Configs):
-        params = list(model.named_parameters())
-
-        def is_backbone(n): return 'bert' in n
-
-        grouped_parameters = [
-            {"params": [p for n, p in params if is_backbone(n)], 'lr': Configs.base_lr},
-            {"params": [p for n, p in params if not is_backbone(n)], 'lr': Configs.lr},
-        ]
-
-        optimizer = torch.optim.AdamW(
-            grouped_parameters, lr=Configs.lr, weight_decay=Configs.l2
-        )
-
-        return optimizer
-
-    optimizer = configure_optimizers(Configs=Configs)
     num_training_steps = len(train_loader) * n_epochs
     num_warmup_steps = len(train_loader)
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps,
@@ -298,11 +313,13 @@ if __name__ == '__main__':
         if best_fscore == None or best_fscore < test_fscore:
             best_fscore, best_loss, best_label, best_pred, best_mask = \
                 test_fscore, test_loss, test_label, test_pred, test_mask
+            # state = {'net': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': e}
+            # torch.save(state, Configs.model_path + 'model_4_2.pth')
 
         print('epoch {} train_loss {} train_acc {} train_fscore {} test_loss {} test_acc {} test_fscore {} time {}'. \
                 format(e + 1, train_loss, train_acc, train_fscore, test_loss,
                        test_acc, test_fscore, round(time.time() - start_time, 2)))
-        print(test_class_report)
+        # print(test_class_report)
 
     print('Test performance..')
     print('Fscore {} accuracy {}'.format(best_fscore,

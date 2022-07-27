@@ -11,6 +11,7 @@ import pandas as pd
 from transformers import AlbertTokenizer
 from transformers import RobertaTokenizer
 import json
+import re
 from senticnet.senticnet import SenticNet
 from configs import inputconfig_func
 Configs = inputconfig_func()
@@ -26,6 +27,9 @@ def tokenize(data, tokenizer, MAX_L=20, model_type='albert'):
     keys = data.keys()
     for key in keys:
         dial = data[key]
+        for idx, _ in enumerate(dial):
+            dial[idx] = re.sub(r'\x92', '', dial[idx])
+            dial[idx] = re.sub(r'\x91', '', dial[idx])
         # input_ids[key] = []
         # masks[key] = []
         # token_types[key] = []

@@ -31,13 +31,16 @@ class Model(nn.Module):
             self.bert_encoder = RobertaModel.from_pretrained('roberta-base')
         elif Configs.model_type == 'roberta_large':
             self.bert_encoder = RobertaModel.from_pretrained('roberta-large')
+            if Configs.freeze_bert:
+                for param in self.bert_encoder.base_model.parameters():
+                    param.requires_grad = False
         self.window = 2 * Configs.slide_win + 1
         self.slide_win = Configs.slide_win
         self.lamb = Configs.lamb
         self.num_head = Configs.num_head
         self.num_bases = Configs.num_bases
         self.use_future = Configs.use_future_utt
-        self.use_dot_att = Configs.use_dot_att
+        self.att_type = Configs.att_type
         self.cuda_ = cuda_
         # self.get_cpt_emb()
         self.fw = torch.nn.Linear(self.output_dim, self.input_dim)
@@ -65,7 +68,7 @@ class Model(nn.Module):
         self.dropout = nn.Dropout(Configs.dropout)
         self.model_type = Configs.model_type
         self.chunk_size = Configs.chunk_size
-        self.linear_att = nn.Linear(3*self.input_dim + 1, 1)
+        self.att_item = nn.Linear(self.num_feature*self.input_dim + 1, 1)
         self.att_linear = nn.Linear(2*self.input_dim, 1)
         print('num_feature', self.num_feature)
 
@@ -109,15 +112,15 @@ class Model(nn.Module):
             utt_ids = torch.cat((pre_pad, torch.arange(len_dial)))
             relatt_ids = utt_ids.unfold(0, self.slide_win + 1, 1)
             batch_input = out_[relatt_ids].unsqueeze(1)  # batch, channel(1), seq_len, dim
-            # relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
+            relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
             # use the average vectors instead of the slide_win th vector
-            relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
+            # relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
 
         # process concept
         output_ = []
         losses = 0
 
-        for chunk in chunks:
+        for idx, chunk in enumerate(chunks):
             srcs_input_ids, srcs_token_type_ids, srcs_attention_mask,srcs_sel_mask, dsts_input_ids, dsts_token_type_ids,\
             dsts_attention_mask, dsts_sel_mask, weights, sentics, src_masks, masks, rels, utt_idx = chunk
 
@@ -143,7 +146,7 @@ class Model(nn.Module):
                 alpha = torch.softmax(s_score_masked, dim=2) * src_masks.unsqueeze(2)
                 src_emb = src_emb + torch.sum(alpha.unsqueeze(3) * re_dot, dim=2)
 
-                if self.use_dot_att:
+                if self.att_type == 'dot_att':
                     dot_sum = torch.sum(src_emb *
                                         relatt_out[utt_idx].unsqueeze(1), dim=-1)
 
@@ -152,21 +155,23 @@ class Model(nn.Module):
                     # att_score = torch.softmax(dot_sum, dim=-1) * src_mask
                     symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)
 
-
-                # use item attention to calculate the attention score between src_emb and relatt_out
-                else:
-                    # item_att = self.item_att(relatt_out[utt_idx].unsqueeze(1).repeat(1, src_emb.size(1), 1), src_emb)
-                    # item_sum = self.linear_att(item_att).squeeze(-1)
-                    # src_mask = torch.sum(masks, dim=-1) > 0
-                    # att_score = torch.softmax(self.get_att_masked(item_sum, src_mask), dim=-1) * src_masks
-                    # symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)
-
+                elif self.att_type == 'linear_att':
                     att_feature = torch.cat((relatt_out[utt_idx].unsqueeze(1).repeat(1, src_emb.size(1), 1), src_emb), dim=-1)
                     att_sum = self.att_linear(att_feature).squeeze(-1)
                     src_mask = torch.sum(masks, dim=-1) > 0
                     att_score = torch.softmax(self.get_att_masked(att_sum, src_mask), dim=-1) * src_masks
                     symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)
 
+                # use item attention to calculate the attention score between src_emb and relatt_out
+                elif self.att_type == 'item_att':
+                    item_att = self.item_att(relatt_out[utt_idx].unsqueeze(1).repeat(1, src_emb.size(1), 1), src_emb)
+                    item_sum = self.att_item(item_att).squeeze(-1)
+                    src_mask = torch.sum(masks, dim=-1) > 0
+                    att_score = torch.softmax(self.get_att_masked(item_sum, src_mask), dim=-1) * src_masks
+                    symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)
+
+                else:
+                    print("ValueError!")
 
             # feature fusion
             if self.num_feature == 4:
@@ -189,7 +194,10 @@ class Model(nn.Module):
             loss = loss_func(output, label[utt_idx]) / len_dial
 
             if train:
-                loss.backward(retain_graph=True)
+                if len(chunks) == idx + 1:
+                    loss.backward()
+                else:
+                    loss.backward(retain_graph=True)
             output_.append(output.data)
             losses += loss.item()
             del symbolic_repr

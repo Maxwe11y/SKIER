@@ -29,7 +29,10 @@ class Model(nn.Module):
             self.bert_encoder = RobertaModel.from_pretrained('roberta-large')
         self.window = 2 * Configs.slide_win + 1
         self.slide_win = Configs.slide_win
-        self.lamb = 0.5
+        self.lamb = self.lamb = Configs.lamb
+        self.num_head = Configs.num_head
+        self.num_bases = Configs.num_bases
+
         self.cuda_ =cuda_
         # self.get_cpt_emb()
         self.fw = torch.nn.Linear(self.output_dim, self.input_dim)
@@ -37,10 +40,10 @@ class Model(nn.Module):
 
         self.fw_concept = torch.nn.Linear(self.output_dim, self.input_dim)
 
-        self.conv1 = RelGraphConv(self.input_dim, self.input_dim, self.num_relations, regularizer='basis', num_bases=2)
-        self.conv2 = RelGraphConv(self.input_dim, self.input_dim, self.num_relations, regularizer='basis', num_bases=2)
+        self.conv1 = RelGraphConv(self.input_dim, self.input_dim, self.num_relations, regularizer='basis', num_bases=self.num_bases)
+        self.conv2 = RelGraphConv(self.input_dim, self.input_dim, self.num_relations, regularizer='basis', num_bases=self.num_bases)
 
-        self.relAtt = RelAtt(1, 1, (self.window, self.input_dim), heads=8, dim_head=self.input_dim // 2, dropout=Configs.att_dropout)
+        self.relAtt = RelAtt(1, 1, (self.window, self.input_dim), heads=self.num_head, dim_head=self.input_dim // 2, dropout=Configs.att_dropout)
 
         # self.isa_rl = nn.Parameter(nn.init.uniform_(torch.zeros(1, self.input_dim)), requires_grad=True)
         # self.causes_rl = nn.Parameter(nn.init.uniform_(torch.zeros(1, self.input_dim)), requires_grad=True)
