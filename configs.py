@@ -27,7 +27,7 @@ def inputconfig_func():
     parser.add_argument('--num_relations', type=int, default=16, metavar='NR', help='number of dialog parsing relations')
     parser.add_argument('--class-weight', action='store_true', default=False, help='class weight')
     parser.add_argument('--activation', type=str, default='sigmoid', help='activation function')
-    parser.add_argument('--data_type', type=str, default='meld', help='whether use meld or dailydialog')
+    parser.add_argument('--data_type', type=str, default='meld', help='whether use meld or daily')
     parser.add_argument('--model_type', type=str, default='albert', help='pretrained_model_type')
     parser.add_argument('--max_sen_len', type=int, default=30, help='max sentence length')
     parser.add_argument('--slide_win', type=int, default=2, help='size of the sliding window')
@@ -38,7 +38,7 @@ def inputconfig_func():
     parser.add_argument('--use_future_utt', action='store_true', default=False, help='use future utterances or not')
     parser.add_argument('--att_type', type=str, default='dot_att', help='attention type, dot-att, linear_att and item_att')
     parser.add_argument('--src_num', type=int, default=4, help='number of words for source sentence')
-    parser.add_argument('--dst_num_per_rel', type=int, default=2, help='number of destination words per '
+    parser.add_argument('--dst_num_per_rel', type=int, default=3, help='number of destination words per '
                                                                        'relation per src word')
     parser.add_argument('--model_path', type=str, default='./model/', help='path of saved model')
     parser.add_argument('--glove_path', type=str, default='./glove/', help='path of glove embeddings')

@@ -80,10 +80,10 @@ class Model(nn.Module):
         self.att_item = nn.Linear(3*self.input_dim + 1, 1)
         self.att_linear = nn.Linear(2*self.input_dim, 1)
 
-        self.layer_norm = nn.LayerNorm(self.layer_norm)
+        self.layer_norm = nn.LayerNorm(self.input_dim)
         self.use_layer_norm = Configs.use_layer_norm
 
-        word_embedding = torch.FloatTensor(json.load(open(Configs.glove_path+'glove.json', 'r')))
+        word_embedding = torch.FloatTensor(json.load(open(Configs.glove_path+'glove_{}_{}.json'.format(Configs.src_num, Configs.dst_num_per_rel), 'r')))
         if Configs.freeze_glove:
             self.embedding = torch.nn.Embedding.from_pretrained(word_embedding, freeze=True)
         else:
@@ -93,7 +93,7 @@ class Model(nn.Module):
     def forward(self, inputs, str_src, str_dst, str_edge_type, chunks, label, loss_func, train=True):
         # torch.autograd.set_detect_anomaly(True)
 
-        len_dial = len(inputs['input_ids'])
+        # len_dial = len(inputs['input_ids'])
         if self.model_type == 'albert':
             out = self.bert_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'],
                                     token_type_ids=inputs['token_type_ids'])
@@ -101,6 +101,7 @@ class Model(nn.Module):
             out = self.bert_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
 
         dial_sel = out[0][inputs['input_ids'] >= 50265]
+        len_dial = len(dial_sel)
         # out_ = self.fw(out[0][:, 0, :])
         out_ = self.fw(dial_sel)
 
@@ -142,7 +143,7 @@ class Model(nn.Module):
 
         # process concept
         output_ = []
-        output_aux = []
+
         losses = 0
 
         for idx, chunk in enumerate(chunks):

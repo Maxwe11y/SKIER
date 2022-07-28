@@ -44,8 +44,8 @@ def get_train_valid_sampler(trainset, valid=0.1):
     return SubsetRandomSampler(idx[split:]), SubsetRandomSampler(idx[:split])
 
 
-def get_loader_meld(path, batch_size=1, valid=0.1, num_workers=2, MAX_L=20, model_type='albert', pin_memory=False, cuda_=False):
-    trainset = MELDDataset(path=path, MAX_L=MAX_L, train=True, cuda=cuda_, model_type=model_type)
+def get_loader_meld(path, batch_size=1, valid=0.1, num_workers=2, MAX_L=20, num_class = 7, model_type='albert', pin_memory=False, cuda_=False):
+    trainset = MELDDataset(path=path, n_classes=num_class, MAX_L=MAX_L, train=True, cuda=cuda_, model_type=model_type)
     cpt_ids = trainset.cpt_ids
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
     train_loader = DataLoader(trainset,
@@ -65,7 +65,7 @@ def get_loader_meld(path, batch_size=1, valid=0.1, num_workers=2, MAX_L=20, mode
                               worker_init_fn=seed_worker,
                               generator=g)
 
-    testset = MELDDataset(path=path,  MAX_L=MAX_L, train=False, cuda=cuda_, model_type=model_type)
+    testset = MELDDataset(path=path, n_classes=num_class,  MAX_L=MAX_L, train=False, cuda=cuda_, model_type=model_type)
     test_loader = DataLoader(testset,
                              batch_size=batch_size,
                              collate_fn=testset.collate_fn,
@@ -221,15 +221,17 @@ if __name__ == '__main__':
     if n_classes ==7:
         loss_weights = torch.FloatTensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 
-    if Configs.data_type == 'meld' and Configs.num_relations ==16:
+    if Configs.data_type == 'meld' and Configs.num_relations == 16:
         train_loader, valid_loader, test_loader, cpt_ids = \
             get_loader_meld('./data/meld/MELD.pkl', batch_size=Configs.batch_size, valid=Configs.valid,
-                            num_workers=Configs.num_workers, MAX_L=max_sen_len, model_type=Configs.model_type, cuda_=cuda_)
+                            num_workers=Configs.num_workers, MAX_L=max_sen_len, num_class=n_classes,
+                            model_type=Configs.model_type, cuda_=cuda_)
 
-    elif Configs.data_type == 'meld' and Configs.num_relations ==10:
+    elif Configs.data_type == 'meld' and Configs.num_relations == 10:
         train_loader, valid_loader, test_loader, cpt_ids = \
             get_loader_meld('./data/meld/MELD_revised.pkl', batch_size=Configs.batch_size, valid=Configs.valid,
-                            num_workers=Configs.num_workers, MAX_L=max_sen_len, model_type=Configs.model_type, cuda_=cuda_)
+                            num_workers=Configs.num_workers, MAX_L=max_sen_len, num_class=n_classes,
+                            model_type=Configs.model_type, cuda_=cuda_)
 
     elif Configs.data_type == 'daily':
         train_loader, valid_loader, test_loader, cpt_ids = get_loader_daily('./data/dailydialog/Daily.pkl',

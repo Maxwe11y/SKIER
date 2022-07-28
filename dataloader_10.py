@@ -15,7 +15,7 @@ import json
 from prepare_glove import load_w2v, tokenize_glove
 from senticnet.senticnet import SenticNet
 import re
-import string
+from gensim.parsing.preprocessing import remove_stopwords
 from configs import inputconfig_func
 Configs = inputconfig_func()
 
@@ -52,6 +52,34 @@ def tokenize(data, tokenizer, MAX_L=20, model_type='albert'):
     # input_ids = res['input_ids']
     # masks = res['attention_mask']
     # token_types = []
+    # print(count)
+
+    return input_ids, masks, token_types
+
+
+def tokenize_daily(data, tokenizer, MAX_L=20, model_type='albert'):
+    input_ids = {}
+    masks = {}
+    token_types = {}
+    keys = data.keys()
+    count=0
+    for key in keys:
+        dial = data[key]
+
+        res = tokenizer(dial, padding='longest', return_tensors='pt')
+        if res['input_ids'].size(1) > 512:
+            pun = '!"#$%&\'()*+,-.:;=?@[\\]^_`{|}~'
+            dial = re.sub(r'[{}]+'.format(pun), '', dial)
+            dial = remove_stopwords(dial)
+            res = tokenizer(dial, padding='longest', return_tensors='pt')
+            count +=1
+            # print(res['input_ids'].size(1))
+        input_ids[key] = res['input_ids']
+        masks[key] = res['attention_mask']
+        token_types[key] = []
+        if model_type == 'albert':
+            token_types[key] = res['token_type_ids']
+
     print(count)
 
     return input_ids, masks, token_types
@@ -72,6 +100,31 @@ def concate_sen(sentences, speakers, tokenizer):
                 concatenated += tokenizer.additional_special_tokens[sp_index] + dial
             else:
                 concatenated += tokenizer.sep_token + tokenizer.additional_special_tokens[sp_index] + dial
+        concatenated_sentences[key] = concatenated
+        concatenated = ''
+
+    return concatenated_sentences
+
+
+def concate_sen_daily(sentences, speakers, tokenizer):
+    concatenated_sentences = {}
+    keys = sentences.keys()
+    concatenated = ''
+
+    for key in keys:
+        dialog = sentences[key]
+        speaker = speakers[key]
+        for idx, (sp, dial) in enumerate(zip(speaker, dialog)):
+            if sp == '0':
+                sper = tokenizer.additional_special_tokens[0]
+            elif sp == '1':
+                sper = tokenizer.additional_special_tokens[1]
+            else:
+                print('speaker error!')
+            if idx == 0:
+                concatenated += sper + dial
+            else:
+                concatenated += tokenizer.sep_token + sper + dial
         concatenated_sentences[key] = concatenated
         concatenated = ''
 
@@ -482,9 +535,9 @@ class MELDDataset(Dataset):
         sn = SenticNet()
 
         if n_classes == 3:
-            self.videoIDs, self.videoSpeakers, _, self.videoText, \
-            self.videoAudio, self.videoSentence, self.trainVid, \
-            self.testVid, self.videoLabels = pickle.load(open(path, 'rb'))
+            self.videoIDs_, self.videoSpeakers_, _, self.videoText_, \
+            self.videoAudio_, self.videoSentence_, self.trainVid, \
+            self.testVid, self.videoLabels_, self.structure_, self.action_ = pickle.load(open(path, 'rb'))
         elif n_classes == 7:
             self.videoIDs_, self.videoSpeakers_, self.videoLabels_, self.videoText_, \
             self.videoAudio_, self.videoSentence_, self.trainVid, \
@@ -590,10 +643,15 @@ class MELDDataset(Dataset):
 
 class DailyDialogueDataset(Dataset):
 
-    def __init__(self, split, path, MAX_L=20, cuda=False):
+    def __init__(self, split, path, MAX_L=20, cuda=False, model_type='albert'):
 
-        self.tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
-        # self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+        if model_type == 'albert':
+            self.tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+        elif model_type == 'roberta':
+            self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+        elif model_type == 'roberta_large':
+            self.tokenizer = RobertaTokenizer.from_pretrained('roberta-large')
+
         sn = SenticNet()
         self.Speakers_, self.InputSequence_, self.InputMaxSequenceLength_, \
         self.ActLabels_, self.EmotionLabels_, self.trainId, self.testId, self.validId, \
@@ -608,16 +666,28 @@ class DailyDialogueDataset(Dataset):
         elif split == 'valid':
             self.keys = [x for x in self.validId]
 
-        self.cpt_vocab, [isa_dict, causes_dict, hascnt_dict] = gen_cpt_vocab()
-        self.cpt_ids = tok_cpt_vocab(self.tokenizer, self.cpt_vocab, cuda=cuda)
+        self.cpt_vocab, [isa_dict, causes_dict, hascnt_dict] = gen_cpt_vocab(sn)
+        # deprecated
+        # self.cpt_ids = tok_cpt_vocab(self.tokenizer, self.cpt_vocab, cuda=cuda)
+        self.cpt_ids = tok_cpt_vocab(self.cpt_vocab)
 
         self.Speakers, self.InputSequence, self.InputMaxSequenceLength, \
         self.ActLabels, self.EmotionLabels, self.structure, self.action, self.text \
             = [self.partition(data) for data in [self.Speakers_, self.InputSequence_, self.InputMaxSequenceLength_,
                                                  self.ActLabels_, self.EmotionLabels_, self.structure_, self.action_,
                                                  self.text_]]
+        # deprecated
+        # self.sent_ids, self.masks, self.token_types = tokenize(self.text, self.tokenizer, MAX_L=20)
 
-        self.sent_ids, self.masks, self.token_types = tokenize(self.text, self.tokenizer, MAX_L=20)
+        special_tokens_dict = {
+            'additional_special_tokens': ['</s0>', '</s1>', '</s2>', '</s3>', '</s4>', '</s5>', '</s6>', '</s7>',
+                                          '</s8>']}
+        num_added_toks = self.tokenizer.add_special_tokens(special_tokens_dict)
+
+        concated_sen = concate_sen_daily(self.text, self.Speakers, self.tokenizer)
+
+        self.sent_ids, self.masks, self.token_types = tokenize_daily(concated_sen, self.tokenizer, MAX_L=MAX_L,
+                                                               model_type=model_type)
         self.node_src, self.node_dst, self.edge_type = prepare_graph(self.structure)
 
         # isa_dict_ids, isa_src2ids = tokenize_concept(self.tokenizer, rel='isa')
@@ -630,10 +700,14 @@ class DailyDialogueDataset(Dataset):
         # self.cpt_graph_isa = locate_concept(self.text, self.sent_ids, isa_dict_ids, isa_src2ids)
         # self.cpt_graph_causes = locate_concept(self.text, self.sent_ids, causes_dict_ids, causes_src2ids)
         # self.cpt_graph_hascnt = locate_concept(self.text, self.sent_ids, hascnt_dict_ids, hascnt_src2ids)
-        self.cpt_graph_isa = cpt_graph(self.text, self.cpt_vocab, isa_dict, sn)
-        self.cpt_graph_causes = cpt_graph(self.text, self.cpt_vocab, causes_dict, sn)
-        self.cpt_graph_hascnt = cpt_graph(self.text, self.cpt_vocab, hascnt_dict, sn)
-        self.agg_graph = merge(self.cpt_graph_isa, self.cpt_graph_causes, self.cpt_graph_hascnt)
+
+        # deprecated
+        # self.cpt_graph_isa = cpt_graph(self.text, self.cpt_vocab, isa_dict, sn)
+        # self.cpt_graph_causes = cpt_graph(self.text, self.cpt_vocab, causes_dict, sn)
+        # self.cpt_graph_hascnt = cpt_graph(self.text, self.cpt_vocab, hascnt_dict, sn)
+        # self.agg_graph = merge(self.cpt_graph_isa, self.cpt_graph_causes, self.cpt_graph_hascnt)
+
+        self.cpt_graph = gen_cpt_graph(self.text, self.cpt_vocab, isa_dict, causes_dict, hascnt_dict, sn)
 
         # if split == 'train':
         #     self.keys = [x for x in self.trainId]
@@ -657,24 +731,11 @@ class DailyDialogueDataset(Dataset):
         return torch.LongTensor(self.sent_ids[conv]), \
                torch.LongTensor(self.masks[conv]), \
                torch.LongTensor(self.token_types[conv]), \
-               self.cpt_graph_isa[conv][0], \
-               self.cpt_graph_causes[conv][0], \
-               self.cpt_graph_hascnt[conv][0], \
-               self.cpt_graph_isa[conv][1], \
-               self.cpt_graph_causes[conv][1], \
-               self.cpt_graph_hascnt[conv][1], \
+               self.cpt_graph[conv], \
                torch.FloatTensor([[1, 0] if x == '0' else [0, 1] for x in self.Speakers[conv]]), \
                torch.FloatTensor([1] * len(self.ActLabels[conv])), \
                torch.LongTensor(self.ActLabels[conv]), \
                torch.LongTensor(self.EmotionLabels[conv]), \
-               self.cpt_graph_isa[conv][2], \
-               self.cpt_graph_causes[conv][2], \
-               self.cpt_graph_hascnt[conv][2], \
-               self.cpt_graph_isa[conv][3], \
-               self.cpt_graph_causes[conv][3], \
-               self.cpt_graph_hascnt[conv][3], \
-               self.agg_graph[conv][0], \
-               self.agg_graph[conv][1], \
                torch.LongTensor(self.node_src[conv]), \
                torch.LongTensor(self.node_dst[conv]), \
                torch.LongTensor(self.edge_type[conv]), \
@@ -695,58 +756,10 @@ class DailyDialogueDataset(Dataset):
             if i < 3:
                 # result.append(pad_sequence([dat[i][0]]))
                 result.append(dat[i][0])
-            elif i < 9:
-                res = []
-                for utt in dat[i][0]:
-                    # try:
-                    if len(utt) > 0:
-                        nodes = [torch.LongTensor(nd) for nd in utt]
-                        res.append(pad_sequence(nodes, batch_first=True, padding_value=-1))
-                    else:
-                        res.append(utt)
-                    # if len(utt) > 0:
-                    #
-                    #     res.append(torch.LongTensor(utt))
-                    # else:
-                    #     res.append(utt)
-                    # except RuntimeError:
-                    #     print(utt)
-                result.append(res)
-                # res = []
-            elif i < 13:
-                result.append(pad_sequence([dat[i][0]], True))
-                # result.append(dat[i])
-                # res = []
-                # for utt in data[i][0]:
-                #     result.append(torch.LongTensor(utt))
-            elif i < 19:
-                res = []
-                for utt in dat[i][0]:
-                    # try:
-                    if len(utt) > 0:
-                        nodes = [torch.FloatTensor(nd) for nd in utt]
-                        # res.append(nodes)
-                        res.append(pad_sequence(nodes, batch_first=True, padding_value=-1))
-                        # res.append(torch.FloatTensor(utt))
-                    else:
-                        res.append(utt)
-                    # except RuntimeError:
-                    #     print(utt)
-                result.append(res)
-                #
-                #
-                # res = []
-                # for utt in dat[i][0]:
-                #     # try:
-                #     if len(utt) > 0:
-                #
-                #         res.append(torch.FloatTensor(utt))
-                #     else:
-                #         res.append(utt)
-                #     # except RuntimeError:
-                #     #     print(utt)
-                # result.append(res)
-            elif i < 25:
+            elif i < 4:
+                result.append(dat[i][0])
+
+            elif i < 12:
                 result.append(dat[i][0])
             else:
                 result.append(dat[i].tolist())

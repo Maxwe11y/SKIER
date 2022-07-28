@@ -437,9 +437,9 @@ class MELDDataset(Dataset):
         sn = SenticNet()
 
         if n_classes == 3:
-            self.videoIDs, self.videoSpeakers, _, self.videoText, \
-            self.videoAudio, self.videoSentence, self.trainVid, \
-            self.testVid, self.videoLabels = pickle.load(open(path, 'rb'))
+            self.videoIDs_, self.videoSpeakers_, _, self.videoText_, \
+            self.videoAudio_, self.videoSentence_, self.trainVid, \
+            self.testVid, self.videoLabels_, self.structure_, self.action_ = pickle.load(open(path, 'rb'))
         elif n_classes == 7:
             self.videoIDs_, self.videoSpeakers_, self.videoLabels_, self.videoText_, \
             self.videoAudio_, self.videoSentence_, self.trainVid, \

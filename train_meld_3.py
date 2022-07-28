@@ -233,15 +233,17 @@ if __name__ == '__main__':
     if n_classes ==7:
         loss_weights = torch.FloatTensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 
-    if Configs.data_type == 'meld' and Configs.num_relations ==16:
+    if Configs.data_type == 'meld' and Configs.num_relations == 16:
         train_loader, valid_loader, test_loader, cpt_ids = \
             get_loader_meld('./data/meld/MELD.pkl', batch_size=Configs.batch_size, valid=Configs.valid,
-                            num_workers=Configs.num_workers, MAX_L=max_sen_len, model_type=Configs.model_type, cuda_=cuda_)
+                            num_workers=Configs.num_workers, MAX_L=max_sen_len, num_class=n_classes,
+                            model_type=Configs.model_type, cuda_=cuda_)
 
-    elif Configs.data_type == 'meld' and Configs.num_relations ==10:
+    elif Configs.data_type == 'meld' and Configs.num_relations == 10:
         train_loader, valid_loader, test_loader, cpt_ids = \
             get_loader_meld('./data/meld/MELD_revised.pkl', batch_size=Configs.batch_size, valid=Configs.valid,
-                            num_workers=Configs.num_workers, MAX_L=max_sen_len, model_type=Configs.model_type, cuda_=cuda_)
+                            num_workers=Configs.num_workers, MAX_L=max_sen_len, num_class=n_classes,
+                            model_type=Configs.model_type, cuda_=cuda_)
 
     elif Configs.data_type == 'daily':
         train_loader, valid_loader, test_loader, cpt_ids = get_loader_daily('./data/dailydialog/Daily.pkl',

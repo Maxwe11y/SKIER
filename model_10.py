@@ -90,7 +90,7 @@ class Model(nn.Module):
     def forward(self, inputs, str_src, str_dst, str_edge_type, chunks, label, loss_func, train=True):
         # torch.autograd.set_detect_anomaly(True)
 
-        len_dial = len(inputs['input_ids'])
+        # len_dial = len(inputs['input_ids'])
         if self.model_type == 'albert':
             out = self.bert_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'],
                                     token_type_ids=inputs['token_type_ids'])
@@ -98,6 +98,7 @@ class Model(nn.Module):
             out = self.bert_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
 
         dial_sel = out[0][inputs['input_ids']>=50265]
+        len_dial = len(dial_sel)
         # out_ = self.fw(out[0][:, 0, :])
         out_ = self.fw(dial_sel)
 

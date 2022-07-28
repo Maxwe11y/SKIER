@@ -47,8 +47,9 @@ def load_w2v(embedding_dim, embedding_path, cpt_vocab):
 
     print("embedding.shape: {}:".format(len(embedding)))
     print("load embedding done!\n")
-
-    # with open(embedding_path+'glove.json', 'w') as f:
+    # saved
+    # print("glove save function used!\n")
+    # with open(embedding_path+'glove_4_3.json', 'w') as f:
     #     json.dump(embedding, f)
 
     return word_idx_rev, word_idx
