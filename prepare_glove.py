@@ -6,7 +6,7 @@ Email: wei008@e.ntu.edu.sg
 import numpy as np
 import time
 import json
-
+import logging
 
 def print_time():
     print('\n----------{}----------'.format(time.strftime("%Y-%m-%d %X", time.localtime())))
@@ -49,7 +49,7 @@ def load_w2v(embedding_dim, embedding_path, cpt_vocab):
     print("load embedding done!\n")
     # saved
     # print("glove save function used!\n")
-    # with open(embedding_path+'glove_4_3.json', 'w') as f:
+    # with open(embedding_path+'glove_4_10.json', 'w') as f:
     #     json.dump(embedding, f)
 
     return word_idx_rev, word_idx
@@ -65,3 +65,15 @@ def tokenize_glove(word_idx, str_input):
         else:
             token_ids.append(word_idx['unk'])
     return token_ids
+
+
+def config_logger(log_path):
+    logger = logging.getLogger()
+    logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
+        level=logging.INFO)
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s'))
+    logger.addHandler(file_handler)
+    return logger

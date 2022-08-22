@@ -10,7 +10,7 @@ def inputconfig_func():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cuda', action='store_false', default=True, help='use GPU acceleration or not')
     parser.add_argument('--lr', type=float, default=0.00005, metavar='LR', help='learning rate')
-    parser.add_argument('--base_lr', type=float, default=0.000005, metavar='BLR', help='learning rate for base model')
+    parser.add_argument('--base_lr', type=float, default=0.0000005, metavar='BLR', help='learning rate for base model')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
     parser.add_argument('--valid', type=float, default=0.1, metavar='va', help='valid for MELD dataset')
     parser.add_argument('--dropout', type=float, default=0.20, metavar='dropout', help='dropout rate')
@@ -19,6 +19,7 @@ def inputconfig_func():
     parser.add_argument('--batch-size', type=int, default=1, metavar='BS', help='batch size')
     parser.add_argument('--chunk_size', type=int, default=10, metavar='CS', help='chunk size')
     parser.add_argument('--epochs', type=int, default=10, metavar='E', help='number of epochs')
+    parser.add_argument('--delta_epoch', type=int, default=0, metavar='DEL', help='number of additional epochs')
     parser.add_argument('--input_dim', type=int, default=100, metavar='D', help='input dimension')
     parser.add_argument('--output_dim', type=int, default=768, metavar='O', help='output dimension of pretrained model')
     parser.add_argument('--num_workers', type=int, default=2, metavar='NW', help='number of workers in '
@@ -46,6 +47,9 @@ def inputconfig_func():
     parser.add_argument('--freeze_glove', action='store_true', default=False, help='freeze parameters of GloVe vectors')
     parser.add_argument('--fine_tune', action='store_true', default=False, help='fine tune the model or not')
     parser.add_argument('--use_layer_norm', action='store_true', default=False, help='use layer norm before activation function or not')
+    parser.add_argument('--use_fixed', action='store_true', default=False,
+                        help='use fixed lamb or not')
+    parser.add_argument('--rel_fun', type=str, default='vector', help='rel function, vector, ones, linear, or average')
     parser.add_argument('--tensorboard', action='store_true', default=False, help='Enables tensorboard log')
 
     return parser.parse_args()

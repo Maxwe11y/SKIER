@@ -146,9 +146,14 @@ class Trans_RelAtt(nn.Module):
 # img = torch.randn([1, 50, 3])# b, (ih iw), c
 # res = att(img)
 
-
+#
 # att_ = RelAtt(3, 6, (2, 4), heads=2, dim_head=12)
 # img_ = torch.randn([1, 3, 2, 4])# b,  c, ih, iw
+# res_ = att_(img_)
+# print(res_.size())
+
+# att_ = RelAtt(3, 1, (1, 8), heads=2, dim_head=12)
+# img_ = torch.randn([1, 3, 1, 8])# b,  c, ih, iw
 # res_ = att_(img_)
 # print(res_.size())
 

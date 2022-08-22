@@ -78,7 +78,7 @@ class Model(nn.Module):
         self.att_item = nn.Linear(3*self.input_dim + 1, 1)
         self.att_linear = nn.Linear(2*self.input_dim, 1)
 
-        word_embedding = torch.FloatTensor(json.load(open(Configs.glove_path+'glove.json', 'r')))
+        word_embedding = torch.FloatTensor(json.load(open(Configs.glove_path+'glove_4_3.json', 'r')))
         if Configs.freeze_glove:
             self.embedding = torch.nn.Embedding.from_pretrained(word_embedding, freeze=True)
         else:
@@ -204,7 +204,7 @@ class Model(nn.Module):
                 output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
             elif self.num_feature == 1:
                 feat = out_[utt_idx]
-                output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
+                output = torch.log_softmax(self.linear(feat), dim=1)
             else:
                 print("ValueError!")
 

@@ -43,7 +43,6 @@ class Model(nn.Module):
 
         self.window = 2 * Configs.slide_win + 1
         self.slide_win = Configs.slide_win
-        self.lamb = Configs.lamb
         self.num_head = Configs.num_head
         self.num_bases = Configs.num_bases
         self.use_future = Configs.use_future_utt
@@ -59,14 +58,20 @@ class Model(nn.Module):
         self.conv2 = RelGraphConv(self.input_dim, self.input_dim, self.num_relations, regularizer='basis', num_bases=self.num_bases)
 
         if self.use_future:
-            self.relAtt = RelAtt(1, 1, (self.window, self.input_dim), heads=self.num_head, dim_head=self.input_dim // 2, dropout=Configs.att_dropout)
+            self.relAtt = RelAtt(1, 1, (self.window, self.input_dim), heads=self.num_head, dim_head=self.input_dim, dropout=Configs.att_dropout)
+            # self.relAtt = RelAtt(self.window, 1, (1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
+            #                      dropout=Configs.att_dropout)
         else:
-            self.relAtt = RelAtt(1, 1, (self.slide_win+1, self.input_dim), heads=self.num_head, dim_head=self.input_dim // 2,
+            self.relAtt = RelAtt(1, 1, (self.slide_win+1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
                              dropout=Configs.att_dropout)
+            # self.relAtt = RelAtt(self.slide_win+1, 1, (1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
+            #                      dropout=Configs.att_dropout)
+
+
         # self.relAtt = Trans_RelAtt(1, 1, (self.window, self.input_dim), heads=self.num_head, dim_head=self.input_dim // 2,
         #                      dropout=Configs.att_dropout)
 
-        self.r = nn.Parameter(nn.init.uniform_(torch.zeros(3, self.input_dim)), requires_grad=True)
+        # self.r = nn.Parameter(nn.init.xavier_normal_(torch.zeros(3, self.input_dim)), requires_grad=True)
         self.num_feature = Configs.num_features
         self.fusion = nn.Linear(self.num_feature*self.input_dim, self.input_dim)
         self.fusion_2 = nn.Linear(self.input_dim, self.input_dim)
@@ -74,6 +79,7 @@ class Model(nn.Module):
         self.linear_2 = nn.Linear(self.input_dim, self.num_class)
         self.ac = nn.ReLU()
         self.ac_tanh = nn.Tanh()
+        self.ac_sigmoid = nn.Sigmoid()
         self.dropout = nn.Dropout(Configs.dropout)
         self.model_type = Configs.model_type
         self.chunk_size = Configs.chunk_size
@@ -83,14 +89,35 @@ class Model(nn.Module):
         self.layer_norm = nn.LayerNorm(self.input_dim)
         self.use_layer_norm = Configs.use_layer_norm
 
-        word_embedding = torch.FloatTensor(json.load(open(Configs.glove_path+'glove_{}_{}.json'.format(Configs.src_num, Configs.dst_num_per_rel), 'r')))
+        self.use_fixed = Configs.use_fixed
+        if self.use_fixed:
+            self.lamb = Configs.lamb
+        else:
+            self.lamb = nn.Linear(1, 1)
+
+        word_embedding = torch.FloatTensor(json.load(open(Configs.glove_path+'glove_{}_{}.json'.format(4, Configs.dst_num_per_rel), 'r')))
         if Configs.freeze_glove:
             self.embedding = torch.nn.Embedding.from_pretrained(word_embedding, freeze=True)
         else:
             self.embedding = torch.nn.Embedding.from_pretrained(word_embedding, freeze=False)
         print('num_feature', self.num_feature)
 
-    def forward(self, inputs, str_src, str_dst, str_edge_type, chunks, label, loss_func, train=True):
+        self.CoAtt = RelAtt(self.num_feature, 1, (1, self.input_dim), heads=self.num_head, dim_head=self.input_dim // 2,
+                            dropout=Configs.att_dropout)
+        self.linear_out = nn.Linear(self.input_dim, self.input_dim)
+
+        self.rel_fun = Configs.rel_fun
+        if self.rel_fun == 'vector':
+
+            self.r = nn.Parameter(nn.init.xavier_normal_(torch.zeros(3, self.input_dim)), requires_grad=True)
+        elif self.rel_fun == 'ones':
+            self.r = nn.Parameter(torch.ones(3, self.input_dim), requires_grad=False)
+        elif self.rel_fun == 'linear':
+
+            self.r = nn.Parameter(torch.randn(3, self.input_dim, self.input_dim)) # nn.ParameterList([nn.Parameter(torch.randn(self.input_dim, self.input_dim)) for _ in range(3)])
+
+
+    def forward(self, inputs, str_src, str_dst, str_edge_type, chunks, label, loss_func, train=True, eps=1e-8):
         # torch.autograd.set_detect_anomaly(True)
 
         # len_dial = len(inputs['input_ids'])
@@ -112,6 +139,7 @@ class Model(nn.Module):
         else:
             g = dgl.graph((str_src, str_dst))
             etype = str_edge_type
+            # etype = torch.zeros_like(etype_)
             hidden = self.conv1(g, out_, etype)
             if self.use_layer_norm:
                 hidden = torch.relu(self.layer_norm(hidden))
@@ -120,26 +148,35 @@ class Model(nn.Module):
             hidden_rgcn = self.conv2(g, hidden, etype)
 
         # utilize CoAtt to generate context representation
-        if len_dial < self.window:
-            relatt_out = out_
-        elif self.use_future:
-            pre_pad = torch.LongTensor([0] * self.slide_win)
-            post_pad = torch.LongTensor([-1] * self.slide_win)
-            utt_ids = torch.cat((pre_pad, torch.arange(len_dial), post_pad))
-            relatt_ids = utt_ids.unfold(0, self.window, 1)
-            batch_input = out_[relatt_ids].unsqueeze(1)  # batch, channel(1), seq_len, dim
-            # relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
-            # use the average vectors instead of the slide_win th vector
-            relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
-        else:
-            # only use the previous utterances
-            pre_pad = torch.LongTensor([0] * self.slide_win)
-            utt_ids = torch.cat((pre_pad, torch.arange(len_dial)))
-            relatt_ids = utt_ids.unfold(0, self.slide_win + 1, 1)
-            batch_input = out_[relatt_ids].unsqueeze(1)  # batch, channel(1), seq_len, dim
-            relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
-            # use the average vectors instead of the slide_win th vector
-            # relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
+        # if len_dial < self.window:
+        #     relatt_out = out_
+        # elif self.use_future:
+        #     pre_pad = torch.LongTensor([0] * self.slide_win)
+        #     post_pad = torch.LongTensor([-1] * self.slide_win)
+        #     utt_ids = torch.cat((pre_pad, torch.arange(len_dial), post_pad))
+        #     relatt_ids = utt_ids.unfold(0, self.window, 1)
+        #     batch_input = out_[relatt_ids].unsqueeze(1)  # batch, channel(1), seq_len, dim
+        #     # relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
+        #     # use the average vectors instead of the slide_win th vector
+        #     relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
+        #
+        #     # another version of CoAtt
+        #     # batch_input = out_[relatt_ids].unsqueeze(2) # batch, channel(window), seq_len(1), dim
+        #     # relatt_out = self.relAtt(batch_input).squeeze()
+        # else:
+        #     # only use the previous utterances
+        #     pre_pad = torch.LongTensor([0] * self.slide_win)
+        #     utt_ids = torch.cat((pre_pad, torch.arange(len_dial)))
+        #     relatt_ids = utt_ids.unfold(0, self.slide_win + 1, 1)
+        #     batch_input = out_[relatt_ids].unsqueeze(1)  # batch, channel(1), seq_len, dim
+        #
+        #     relatt_out = self.relAtt(batch_input)[:, :, self.slide_win, :].squeeze(1)
+        #     # use the average vectors instead of the slide_win th vector
+        #     # relatt_out = torch.mean(self.relAtt(batch_input), dim=2).squeeze(1)
+        #
+        #     # another version of CoAtt
+        #     batch_input = out_[relatt_ids].unsqueeze(2)  # batch, channel(window), seq_len(1), dim
+        #     relatt_out = self.relAtt(batch_input).squeeze()
 
         # process concept
         output_ = []
@@ -163,62 +200,89 @@ class Model(nn.Module):
                 dst_emb = self.get_cpt_emb([dsts_input_ids, dsts_token_type_ids,
                 dsts_sel_mask], chunk_size, num_src*num_dst)
 
-                cpt_emb = self.symbolic_proc(relatt_out[utt_idx], dst_emb,
+                cpt_emb = self.symbolic_proc(out_[utt_idx], dst_emb,
                                              weights, sentics, src_masks, masks, chunk_size, num_src, num_dst)
 
                 # integrate relation info into concept embedding
-                r_vector = self.r[rels]
-                re_dot = r_vector * cpt_emb # chunk_size, num_src, num_dst, self.input_dim
-                s_score = torch.sum(src_emb.unsqueeze(2) * re_dot, dim=-1)
-                s_score_masked = self.get_att_masked(s_score, masks)
-                alpha = torch.softmax(s_score_masked, dim=2) * src_masks.unsqueeze(2)
-                src_emb = src_emb + torch.sum(alpha.unsqueeze(3) * re_dot, dim=2)
+                if self.rel_fun in ['vector', 'ones', 'linear']:
+                    r_vector = self.r[rels]
+                    if self.rel_fun == 'linear':
+                        # re_vector = r_vector(cpt_emb)
+                        re_vector = torch.matmul(r_vector, cpt_emb.unsqueeze(-1)).squeeze(-1)
+                    else:
+                        re_vector = r_vector * cpt_emb # chunk_size, num_src, num_dst, self.input_dim
+                    s_score = torch.sum(src_emb.unsqueeze(2) * re_vector, dim=-1)
+                    s_score_masked = self.get_att_masked(s_score, masks)
+                    alpha = torch.softmax(s_score_masked, dim=2) * src_masks.ne(0).unsqueeze(2)
+                    src_emb = src_emb + torch.sum(alpha.unsqueeze(3) * re_vector, dim=2) # /(src_masks.ne(0).unsqueeze(2)+eps)
+                else:
+
+                    src_emb = src_emb + torch.sum(cpt_emb, dim=2)/(src_masks.unsqueeze(2)+eps)
+
 
                 if self.att_type == 'dot_att':
                     dot_sum = torch.sum(src_emb *
-                                        relatt_out[utt_idx].unsqueeze(1), dim=-1)
+                                        out_[utt_idx].unsqueeze(1), dim=-1)
 
                     src_mask = torch.sum(masks, dim=-1) > 0
-                    att_score = torch.softmax(self.get_att_masked(dot_sum, src_mask), dim=-1) * src_masks
+                    att_score = torch.softmax(self.get_att_masked(dot_sum, src_mask), dim=-1) * src_masks.ne(0)
                     # att_score = torch.softmax(dot_sum, dim=-1) * src_mask
-                    symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)
+                    # sent_mask_sum = torch.sum(src_masks.sum(dim=-1).ne(0)) + eps
+                    symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)  # /sent_mask_sum
 
 
                 elif self.att_type == 'linear_att':
-                    att_feature = torch.cat((relatt_out[utt_idx].unsqueeze(1).repeat(1, src_emb.size(1), 1), src_emb), dim=-1)
+                    att_feature = torch.cat((out_[utt_idx].unsqueeze(1).repeat(1, src_emb.size(1), 1), src_emb), dim=-1)
                     att_sum = self.att_linear(att_feature).squeeze(-1)
                     src_mask = torch.sum(masks, dim=-1) > 0
-                    att_score = torch.softmax(self.get_att_masked(att_sum, src_mask), dim=-1) * src_masks
-                    symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)
+                    att_score = torch.softmax(self.get_att_masked(att_sum, src_mask), dim=-1) * src_masks.ne(0)
+                    # sent_mask_sum = torch.sum(src_masks.sum(dim=-1).ne(0)) + eps
+                    symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1) # / sent_mask_sum
 
                 # use item attention to calculate the attention score between src_emb and relatt_out
                 elif self.att_type == 'item_att':
-                    item_att = self.item_att(relatt_out[utt_idx].unsqueeze(1).repeat(1, src_emb.size(1), 1), src_emb)
+                    item_att = self.item_att(out_[utt_idx].unsqueeze(1).repeat(1, src_emb.size(1), 1), src_emb)
                     item_sum = self.att_item(item_att).squeeze(-1)
                     src_mask = torch.sum(masks, dim=-1) > 0
-                    att_score = torch.softmax(self.get_att_masked(item_sum, src_mask), dim=-1) * src_masks
-                    symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)
+                    att_score = torch.softmax(self.get_att_masked(item_sum, src_mask), dim=-1) * src_masks.ne(0)
+                    # sent_mask_sum = torch.sum(src_masks.sum(dim=-1).ne(0)) + eps
+                    symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1) # /sent_mask_sum
 
                 else:
                     print("ValueError!")
 
             # feature fusion
             if self.num_feature == 4:
-                feat = torch.cat((out_[utt_idx], hidden_rgcn[utt_idx],
-                                  relatt_out[utt_idx], symbolic_repr), dim=-1)
+                # feat = torch.cat((out_[utt_idx], hidden_rgcn[utt_idx],
+                #                   relatt_out[utt_idx], symbolic_repr), dim=-1)
+
+                feat_ = torch.stack([out_[utt_idx], hidden_rgcn[utt_idx], symbolic_repr], dim=1).unsqueeze(1)
+                feat = self.CoAtt(feat_).squeeze(1).contiguous().view(-1, (self.num_feature-1)*self.input_dim)
+
                 if self.use_layer_norm:
                     output = torch.log_softmax(self.linear(self.ac_tanh(self.layer_norm(self.dropout(self.fusion(feat))))), dim=1)
                 else:
                     output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
             elif self.num_feature == 3:
-                feat = torch.cat((symbolic_repr, hidden_rgcn[utt_idx],
-                                  relatt_out[utt_idx]), dim=-1)
+                feat = torch.cat((out_[utt_idx], hidden_rgcn[utt_idx], symbolic_repr), dim=-1)
+
+                # feat_ = torch.stack([out_[utt_idx], hidden_rgcn[utt_idx], symbolic_repr], dim=1).unsqueeze(2)
+                # feat = self.CoAtt(feat_).squeeze(1).squeeze(1)
+
+                # output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.linear_out(feat)))), dim=1)
+
                 if self.use_layer_norm:
                     output = torch.log_softmax(self.linear(self.ac_tanh(self.layer_norm(self.dropout(self.fusion(feat))))), dim=1)
                 else:
                     output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
             elif self.num_feature == 2:
                 feat = torch.cat((out_[utt_idx], hidden_rgcn[utt_idx]), dim=-1)
+
+                # feat_ = torch.stack([out_[utt_idx], hidden_rgcn[utt_idx]], dim=1).unsqueeze(2)
+                # feat = self.CoAtt(feat_).squeeze(1).squeeze(1)
+
+                # output = torch.log_softmax(self.linear(self.ac(self.dropout(self.linear_out(feat)))), dim=1)
+
                 if self.use_layer_norm:
                     output = torch.log_softmax(self.linear(self.ac_tanh(self.layer_norm(self.dropout(self.fusion(feat))))), dim=1)
                 else:
@@ -230,7 +294,8 @@ class Model(nn.Module):
                 else:
                     output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
             else:
-                feat = out_[utt_idx] + hidden_rgcn[utt_idx] + relatt_out[utt_idx] + symbolic_repr
+                # feat = out_[utt_idx] + hidden_rgcn[utt_idx] + relatt_out[utt_idx] + symbolic_repr
+                feat = out_[utt_idx] + hidden_rgcn[utt_idx] + symbolic_repr
                 if self.use_layer_norm:
                     output = torch.log_softmax(self.linear_2(self.ac_tanh(self.layer_norm(self.dropout(self.fusion_2(feat))))), dim=1)
                 else:
@@ -318,7 +383,10 @@ class Model(nn.Module):
         cosine_sim = torch.abs(torch.cosine_similarity(relatt_out_chunk.unsqueeze(1).repeat(1, num_src * num_dst, 1),
                                                        dst_emb, dim=-1))
         relatedness = weights * cosine_sim.contiguous().view(chunk_size, num_src, num_dst)
-        omega = self.lamb * relatedness + (1 - self.lamb) * torch.abs(sentics)
+        if self.use_fixed:
+            omega = self.lamb * relatedness + (1 - self.lamb) * torch.abs(sentics)
+        else:
+            omega = self.lamb(relatedness.unsqueeze(-1)).squeeze(-1) +  torch.abs(sentics) - self.lamb(torch.abs(sentics).unsqueeze(-1)).squeeze(-1)
         omega = self.get_att_masked(omega, masks)
         alpha = (src_masks.unsqueeze(2) * torch.softmax(omega, dim=-1)).unsqueeze(2).repeat(1, 1, self.input_dim, 1).transpose(2, 3)
         cpt_emb = alpha * dst_emb.contiguous().view(chunk_size, num_src, num_dst, -1)

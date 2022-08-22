@@ -85,6 +85,34 @@ def tokenize_daily(data, tokenizer, MAX_L=20, model_type='albert'):
     return input_ids, masks, token_types
 
 
+def tokenize_emory(data, tokenizer, MAX_L=20, model_type='albert'):
+    input_ids = {}
+    masks = {}
+    token_types = {}
+    keys = data.keys()
+    count=0
+
+    for key in keys:
+        dial = data[key]
+        dial = re.sub(r'\x92', '', dial)
+        dial = re.sub(r'\x91', '', dial)
+
+        res = tokenizer(dial, padding='longest', return_tensors='pt')
+        if res['input_ids'].size(1) > 512:
+            pun = '!"#$%&\'()*+,-.:;=?@[\\]^_`{|}~'
+            dial = re.sub(r'[{}]+'.format(pun), '', dial)
+            res = tokenizer(dial, padding='longest', return_tensors='pt')
+            count +=1
+            print(res['input_ids'].size(1))
+        input_ids[key] = res['input_ids']
+        masks[key] = res['attention_mask']
+        token_types[key] = []
+        if model_type == 'albert':
+            token_types[key] = res['token_type_ids']
+
+    return input_ids, masks, token_types
+
+
 def concate_sen(sentences, speakers, tokenizer):
     concatenated_sentences = {}
     keys = sentences.keys()
@@ -131,6 +159,27 @@ def concate_sen_daily(sentences, speakers, tokenizer):
     return concatenated_sentences
 
 
+def concate_sen_emory(sentences, speakers, tokenizer):
+    concatenated_sentences = {}
+    keys = sentences.keys()
+    concatenated = ''
+    max_sp = 0
+    for key in keys:
+        dialog = sentences[key]
+        speaker = speakers[key]
+        for idx, (sp, dial) in enumerate(zip(speaker, dialog)):
+            sp_index = sp.index(1)
+            tokenizer.additional_special_tokens[sp_index]
+            if idx == 0:
+                concatenated += tokenizer.additional_special_tokens[sp_index] + dial
+            else:
+                concatenated += tokenizer.sep_token + tokenizer.additional_special_tokens[sp_index] + dial
+        concatenated_sentences[key] = concatenated
+        concatenated = ''
+
+    return concatenated_sentences
+
+
 def prepare_graph(structure):
     src = {}
     dst = {}
@@ -157,6 +206,7 @@ def gen_cpt_vocab(sn, dst_num_per_rel=Configs.dst_num_per_rel):
     for rel in rel_list:
         with open('./data/dialog_concept/{}_weight_dict_all.json'.format(rel), 'r') as f:
             rel_dict_origin = json.load(f)
+        f.close()
         # filter dst node with weight limit
         rel_dict = {}
         for key in rel_dict_origin.keys():
@@ -653,11 +703,14 @@ class DailyDialogueDataset(Dataset):
             self.tokenizer = RobertaTokenizer.from_pretrained('roberta-large')
 
         sn = SenticNet()
-        self.Speakers_, self.InputSequence_, self.InputMaxSequenceLength_, \
-        self.ActLabels_, self.EmotionLabels_, self.trainId, self.testId, self.validId, \
-        self.structure_, self.action_ = pickle.load(open(path, 'rb'))
+        with open(path, 'rb') as f:
+            self.Speakers_, self.InputSequence_, self.InputMaxSequenceLength_, \
+            self.ActLabels_, self.EmotionLabels_, self.trainId, self.testId, self.validId, \
+            self.structure_, self.action_ = pickle.load(f)
+        f.close()
         with open('./data/dailydialog/daily_.json', 'r') as f:
             self.text_ = json.load(f)
+        f.close()
 
         if split == 'train':
             self.keys = [x for x in self.trainId]
@@ -747,8 +800,7 @@ class DailyDialogueDataset(Dataset):
 
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
-        # return [pad_sequence(dat[i]) if i < 6 else pad_sequence(dat[i], True) if i < 10 else i if i<14 else dat[i].tolist() for i in
-        #         dat]
+
         result = []
 
         for i in dat:
@@ -768,6 +820,121 @@ class DailyDialogueDataset(Dataset):
     def partition(self, data):
 
         return {key: data[key] for key in self.keys}
+
+
+
+
+class EmoryNLPDataset(Dataset):
+
+    def __init__(self, split, path, n_classes=7, MAX_L=20, cuda=False, model_type='albert'):
+
+        '''
+                label index mapping =  {'Joyful': 0, 'Mad': 1, 'Peaceful': 2, 'Neutral': 3, 'Sad': 4, 'Powerful': 5, 'Scared': 6}
+                '''
+
+        if model_type == 'albert':
+            self.tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+        elif model_type == 'roberta':
+            self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+        elif model_type == 'roberta_large':
+            self.tokenizer = RobertaTokenizer.from_pretrained('roberta-large')
+
+        sn = SenticNet()
+        with open(path, 'rb') as f:
+            self.speakers_, self.emotion_labels_, self.sentences_, self.trainId, self.testId, self.validId, self.structure_ = pickle.load(f)
+        f.close()
+
+        sentiment_labels = {}
+        for item in self.emotion_labels_:
+            array = []
+            # 0 negative, 1 neutral, 2 positive
+            for e in self.emotion_labels_[item]:
+                if e in [1, 4, 6]:
+                    array.append(0)
+                elif e == 3:
+                    array.append(1)
+                elif e in [0, 2, 5]:
+                    array.append(2)
+            sentiment_labels[item] = array
+
+        if n_classes == 7:
+            self.labels_ = self.emotion_labels_
+        elif n_classes == 3:
+            self.labels_ = sentiment_labels
+
+
+        if split == 'train':
+            self.keys = [x for x in self.trainId]
+        elif split == 'test':
+            self.keys = [x for x in self.testId]
+        elif split == 'valid':
+            self.keys = [x for x in self.validId]
+
+        self.cpt_vocab, [isa_dict, causes_dict, hascnt_dict] = gen_cpt_vocab(sn)
+        # deprecated
+        # self.cpt_ids = tok_cpt_vocab(self.tokenizer, self.cpt_vocab, cuda=cuda)
+        self.cpt_ids = tok_cpt_vocab(self.cpt_vocab)
+
+        self.speakers, self.labels, self.structure, self.sentence \
+            = [self.partition(data) for data in [self.speakers_, self.labels_, self.structure_, self.sentences_]]
+
+        special_tokens_dict = {
+            'additional_special_tokens': ['</s0>', '</s1>', '</s2>', '</s3>', '</s4>', '</s5>', '</s6>', '</s7>',
+                                          '</s8>']}
+        num_added_toks = self.tokenizer.add_special_tokens(special_tokens_dict)
+
+        concated_sen = concate_sen_emory(self.sentence, self.speakers, self.tokenizer)
+
+        self.sent_ids, self.masks, self.token_types = tokenize_emory(concated_sen, self.tokenizer, MAX_L=MAX_L,
+                                                               model_type=model_type)
+        self.node_src, self.node_dst, self.edge_type = prepare_graph(self.structure)
+
+        self.cpt_graph = gen_cpt_graph(self.sentence, self.cpt_vocab, isa_dict, causes_dict, hascnt_dict, sn)
+
+        self.len = len(self.keys)
+
+    def __getitem__(self, index):
+        conv = self.keys[index]
+
+        return torch.LongTensor(self.sent_ids[conv]), \
+               torch.LongTensor(self.masks[conv]), \
+               torch.LongTensor(self.token_types[conv]), \
+               self.cpt_graph[conv], \
+               torch.FloatTensor(self.speakers_[conv]), \
+               torch.FloatTensor([1] * len(self.labels[conv])), \
+               torch.LongTensor(self.labels[conv]), \
+               torch.LongTensor(self.node_src[conv]), \
+               torch.LongTensor(self.node_dst[conv]), \
+               torch.LongTensor(self.edge_type[conv]), \
+               conv
+
+    def __len__(self):
+        return self.len
+
+    def collate_fn(self, data):
+        dat = pd.DataFrame(data)
+
+        result = []
+
+        for i in dat:
+
+            if i < 3:
+                result.append(dat[i][0])
+            elif i < 4:
+                result.append(dat[i][0])
+
+            elif i < 7:
+                result.append(pad_sequence([dat[i][0]], True))
+            elif i < 10:
+                result.append(dat[i][0])
+            else:
+                result.append(dat[i].tolist())
+        return result
+
+    def partition(self, data):
+
+        return {key: data[key] for key in self.keys}
+
 
 
 # deprecated

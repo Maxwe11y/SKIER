@@ -20,6 +20,7 @@ from model_11 import Model
 from transformers import get_linear_schedule_with_warmup
 import numpy
 import random
+from prepare_glove import config_logger
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -209,9 +210,9 @@ def train_or_eval_model(model, loss_Func, dataloader, epoch, optimizer=None, sch
         avg_loss = round(np.sum(losses) / np.sum(masks), 4)
         avg_accuracy = round(accuracy_score(labels, preds) * 100, 2)
         pre_macro, rec_macro, fbeta_macro, _ = precision_recall_fscore_support(labels, preds, average='macro')
-        pre_micro, rec_micro, fbeta_micro, _ = precision_recall_fscore_support(labels, preds, labels=[0, 1, 2, 3, 5, 6], average='micro')
+        pre_micro, rec_micro, fbeta_micro, _ = precision_recall_fscore_support(labels, preds, labels=[0, 2, 3, 4, 5, 6], average='micro')
 
-        return avg_loss, avg_accuracy, labels, preds, masks, round(fbeta_macro, 2), round(fbeta_micro, 2)
+        return avg_loss, avg_accuracy, labels, preds, masks, round(fbeta_macro, 4), round(fbeta_micro, 4)
 
 
 if __name__ == '__main__':
@@ -296,43 +297,51 @@ if __name__ == '__main__':
         return optimizer
 
     optimizer = configure_optimizers(Configs=Configs)
-    num_training_steps = len(train_loader) * n_epochs
+    num_training_steps = len(train_loader) * (n_epochs+Configs.delta_epoch)
     num_warmup_steps = len(train_loader)
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps,
                                                 num_training_steps=num_training_steps)
 
-
     if Configs.data_type == 'meld':
-        best_fscore, best_loss, best_label, best_pred, best_mask = None, None, None, None, None
+        best_va_fscore, best_fscore, best_loss, best_label, best_pred, best_mask = None, None, None, None, None, None
         for e in range(Configs.epochs):
             start_time = time.time()
+            print('base_lr {} lr {}'.format(optimizer.param_groups[0]['lr'], optimizer.param_groups[1]['lr']))
             train_loss, train_acc, _, _, _, train_fscore, _, = train_or_eval_model(model, loss_Func=loss_function,
-                                                                               dataloader=train_loader, epoch=e,
-                                                                               optimizer=optimizer, scheduler=scheduler,
-                                                                                model_type=Configs.model_type,
-                                                                                chunk_size=Configs.chunk_size, data_type=Configs.data_type,
-                                                                                train=True, cuda_=Configs.cuda)
-
-            # valid_loss, valid_acc, _, _, _, valid_fscore, _ = train_or_eval_model(model, loss_Func=loss_function,
-            #                                                                    dataloader=valid_loader, epoch=e,
-            #                                                                    train=False, cuda_=Configs.cuda)
+                                                                                   dataloader=train_loader, epoch=e,
+                                                                                   optimizer=optimizer,
+                                                                                   scheduler=scheduler,
+                                                                                   model_type=Configs.model_type,
+                                                                                   chunk_size=Configs.chunk_size,
+                                                                                   data_type=Configs.data_type,
+                                                                                   train=True, cuda_=Configs.cuda)
+            with torch.no_grad():
+                valid_loss, valid_acc, _, _, _, valid_fscore, _, = train_or_eval_model(model, loss_Func=loss_function,
+                                                                                       dataloader=valid_loader, epoch=e,
+                                                                                       optimizer=optimizer,
+                                                                                       scheduler=scheduler,
+                                                                                       model_type=Configs.model_type,
+                                                                                       chunk_size=Configs.chunk_size,
+                                                                                       data_type=Configs.data_type,
+                                                                                       train=False, cuda_=Configs.cuda)
             with torch.no_grad():
                 test_loss, test_acc, test_label, test_pred, test_mask, test_fscore, test_class_report = \
-                                                                                train_or_eval_model(model, loss_Func=loss_function,
-                                                                                dataloader=test_loader, epoch=e,
-                                                                                model_type=Configs.model_type,
-                                                                                chunk_size=Configs.chunk_size,
-                                                                                data_type=Configs.data_type,
-                                                                                train=False, cuda_=Configs.cuda)
-            if best_fscore == None or best_fscore < test_fscore:
-                best_fscore, best_loss, best_label, best_pred, best_mask = \
-                    test_fscore, test_loss, test_label, test_pred, test_mask
+                    train_or_eval_model(model, loss_Func=loss_function,
+                                        dataloader=test_loader, epoch=e,
+                                        model_type=Configs.model_type,
+                                        chunk_size=Configs.chunk_size,
+                                        data_type=Configs.data_type,
+                                        train=False, cuda_=Configs.cuda)
+            if best_va_fscore == None or best_va_fscore < valid_fscore:
+                if train_fscore>=valid_fscore:
+                    best_va_fscore, best_fscore, best_loss, best_label, best_pred, best_mask = \
+                        valid_fscore, test_fscore, test_loss, test_label, test_pred, test_mask
                 # state = {'net': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': e}
                 # torch.save(state, Configs.model_path + 'model_5_2.pth')
 
-            print('epoch {} train_loss {} train_acc {} train_fscore {} test_loss {} test_acc {} test_fscore {} time {}'. \
-                    format(e + 1, train_loss, train_acc, train_fscore, test_loss,
-                           test_acc, test_fscore, round(time.time() - start_time, 2)))
+            print('epoch {} train_loss {} train_acc {} train_fscore {} va_loss {} va_acc {} va_fscore {} test_loss {} test_acc {} test_fscore {} time {}'. \
+                  format(e + 1, train_loss, train_acc, train_fscore, valid_loss, valid_acc, valid_fscore, test_loss,
+                         test_acc, test_fscore, round(time.time() - start_time, 2)))
         # print(test_class_report)
 
         print('Test performance..')
@@ -344,7 +353,11 @@ if __name__ == '__main__':
 
 
     elif Configs.data_type == 'daily':
-        best_fscore, best_fmacro, best_fmicro, best_loss, best_label, best_pred, best_mask = None, 0, 0, None, None, None, None
+        localtime = time.localtime(time.time())
+        newtime = time.asctime(localtime)
+        log_path = './log' + '/train_meld_11' + newtime + '.log'
+        logger = config_logger(log_path)
+        best_va_fscore, best_fscore, best_fmacro, best_fmicro, best_loss, best_label, best_pred, best_mask = None, None, 0, 0, None, None, None, None
         for e in range(Configs.epochs):
             start_time = time.time()
             train_loss, train_acc, _, _, _, train_fmacro, train_fmicro = train_or_eval_model(model, loss_Func=loss_function,
@@ -355,10 +368,18 @@ if __name__ == '__main__':
                                                                                    chunk_size=Configs.chunk_size,
                                                                                    data_type=Configs.data_type,
                                                                                    train=True, cuda_=Configs.cuda)
-
-            # valid_loss, valid_acc, _, _, _, valid_fscore, _ = train_or_eval_model(model, loss_Func=loss_function,
-            #                                                                    dataloader=valid_loader, epoch=e,
-            #                                                                    train=False, cuda_=Configs.cuda)
+            with torch.no_grad():
+                valid_loss, valid_acc, _, _, _, valid_fmacro, valid_fmicro = train_or_eval_model(model,
+                                                                                                 loss_Func=loss_function,
+                                                                                                 dataloader=valid_loader,
+                                                                                                 epoch=e,
+                                                                                                 optimizer=optimizer,
+                                                                                                 scheduler=scheduler,
+                                                                                                 model_type=Configs.model_type,
+                                                                                                 chunk_size=Configs.chunk_size,
+                                                                                                 data_type=Configs.data_type,
+                                                                                                 train=False,
+                                                                                                 cuda_=Configs.cuda)
             with torch.no_grad():
                 test_loss, test_acc, test_label, test_pred, test_mask, test_fmacro, test_fmicro = \
                     train_or_eval_model(model, loss_Func=loss_function,
@@ -367,22 +388,76 @@ if __name__ == '__main__':
                                         chunk_size=Configs.chunk_size,
                                         data_type=Configs.data_type,
                                         train=False, cuda_=Configs.cuda)
-
+            train_fscore = train_fmacro + train_fmicro
+            valid_fscore = valid_fmacro + valid_fmicro
             test_fscore = test_fmacro + test_fmicro
-            if best_fscore == None or best_fscore < test_fscore:
-                best_fscore, best_fmacro, best_fmicro, best_loss, best_label, best_pred, best_mask = \
-                    test_fscore, test_fmacro, test_fmicro, test_loss, test_label, test_pred, test_mask
+            if best_va_fscore == None or best_va_fscore < valid_fscore:
+                if train_fscore>=valid_fscore:
+                    best_va_fscore, best_fscore, best_fmacro, best_fmicro, best_loss, best_label, best_pred, best_mask = \
+                        valid_fscore,test_fscore, test_fmacro, test_fmicro, test_loss, test_label, test_pred, test_mask
                 # state = {'net': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': e}
                 # torch.save(state, Configs.model_path + 'model_5_2.pth')
 
-            print('epoch {} train_loss {} train_acc {} train_fmacro {} train_fmicro {} test_loss {} test_acc {} test_fmacro {} test_fmicro {} time {}'. \
-                    format(e + 1, train_loss, train_acc, train_fmacro, train_fmicro, test_loss,
-                           test_acc, test_fmacro, test_fmicro, round(time.time() - start_time, 2)))
+            logger.info(
+                'epoch {} train_loss {} train_acc {} train_fmacro {} train_fmicro {} valid_loss {} valid_acc {} valid_fmacro {} valid_fmicro {} test_loss {} test_acc {} test_fmacro {} test_fmicro {} time {}'. \
+                format(e + 1, train_loss, train_acc, train_fmacro, train_fmicro, valid_loss, valid_acc, valid_fmacro,
+                       valid_fmicro, test_loss,
+                       test_acc, test_fmacro, test_fmicro, round(time.time() - start_time, 2)))
 
+        logger.info('Test performance..')
+        logger.info('Fmacro {} Fmicro {} accuracy {}'.format(best_fmacro, best_fmicro, round(
+            accuracy_score(best_label, best_pred, sample_weight=best_mask) * 100,
+            2)))
+
+
+    elif Configs.data_type == 'emory':
+        best_va_fscore, best_fscore, best_loss, best_label, best_pred, best_mask = None, None, None, None, None, None
+        for e in range(Configs.epochs):
+            start_time = time.time()
+            train_loss, train_acc, _, _, _, train_fscore, _, = train_or_eval_model(model, loss_Func=loss_function,
+                                                                                   dataloader=train_loader, epoch=e,
+                                                                                   optimizer=optimizer,
+                                                                                   scheduler=scheduler,
+                                                                                   model_type=Configs.model_type,
+                                                                                   chunk_size=Configs.chunk_size,
+                                                                                   data_type=Configs.data_type,
+                                                                                   train=True, cuda_=Configs.cuda)
+            with torch.no_grad():
+                valid_loss, valid_acc, _, _, _, valid_fscore, _ = train_or_eval_model(model, loss_Func=loss_function,
+                                                                                       dataloader=valid_loader, epoch=e,
+                                                                                       optimizer=optimizer,
+                                                                                       scheduler=scheduler,
+                                                                                       model_type=Configs.model_type,
+                                                                                       chunk_size=Configs.chunk_size,
+                                                                                       data_type=Configs.data_type,
+                                                                                       train=False, cuda_=Configs.cuda)
+            with torch.no_grad():
+                test_loss, test_acc, test_label, test_pred, test_mask, test_fscore, test_class_report = \
+                    train_or_eval_model(model, loss_Func=loss_function,
+                                        dataloader=test_loader, epoch=e,
+                                        model_type=Configs.model_type,
+                                        chunk_size=Configs.chunk_size,
+                                        data_type=Configs.data_type,
+                                        train=False, cuda_=Configs.cuda)
+
+            if best_va_fscore == None or best_va_fscore < valid_fscore:
+                if train_fscore>=valid_fscore:
+                    best_va_fscore, best_fscore, best_loss, best_label, best_pred, best_mask = \
+                        valid_fscore, test_fscore, test_loss, test_label, test_pred, test_mask
+                # state = {'net': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': e}
+                # torch.save(state, Configs.model_path + 'model_5_2.pth')
+
+            print('epoch {} train_loss {} train_acc {} train_fscore {} valid_loss {} valid_acc {} valid_fscore {} test_loss {} test_acc {} test_fscore {} time {}'. \
+                  format(e + 1, train_loss, train_acc, train_fscore, valid_loss, valid_acc, valid_fscore, test_loss,
+                         test_acc, test_fscore, round(time.time() - start_time, 2)))
+        # print(test_class_report)
 
         print('Test performance..')
-        print('Fmacro {} Fmicro {} accuracy {}'.format(best_fmacro, best_fmicro, round(accuracy_score(best_label, best_pred, sample_weight=best_mask) * 100,
+        print('Fscore {} accuracy {}'.format(best_fscore,
+                                             round(accuracy_score(best_label, best_pred, sample_weight=best_mask) * 100,
                                                    2)))
+        print(classification_report(best_label, best_pred, sample_weight=best_mask, digits=4))
+        print(confusion_matrix(best_label, best_pred, sample_weight=best_mask))
 
 # load saved model
 # checkpoint = torch.load(dir)
