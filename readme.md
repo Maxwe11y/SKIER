@@ -1,1 +1,1 @@
-This is the code for DialogSymbolic project
+This is the code for SKIER project
