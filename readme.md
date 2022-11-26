@@ -21,7 +21,7 @@ a relation-aware concept representation mechanism to integrate the concepts in d
 
 The structure of the data dir is as follows:
 
-
+```
 data
 └───   EMORY
        └─── EMORY.pkl
@@ -35,10 +35,10 @@ data
        └─── hascontext_weight_dict_all.json
        └─── isa_dict_all.json
        └─── isa_weight_dict_all.json
-└───   MELD(Plz check out the following sharing link)
+```
+ MELD(Plz check out the following sharing link)
        └─── [MELD_revised](https://www.dropbox.com/s/edspgpbgnouh21h/MELD_revised.zip?dl=0)
-       └─── MELD https://www.dropbox.com/s/5m6rcg5g2nhys22/MELD.zip?dl=0
-
+       └─── [MELD](https://www.dropbox.com/s/5m6rcg5g2nhys22/MELD.zip?dl=0)
 
 
 
