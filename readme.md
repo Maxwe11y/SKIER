@@ -19,22 +19,26 @@ a relation-aware concept representation mechanism to integrate the concepts in d
 
 ### Dataset Structure
 
-The structure of the proposed ConvECPE dataset is as follows:
+The structure of the data dir is as follows:
 
 ```
-ConvECPE
-└───   ID of conversations
-└───   speaker info of conversations
-└───   label of conversations
-└───   the first cause label of each utterance in conversations
-└───   the second cause label of each utterance in conversations
-└───   the third cause label of each utterance in conversations
-└───   textual features of conversations
-└───   audio features of conversations
-└───   video features of conversations
-└───   raw text of conversations
-└───   ID of training conversations
-└───   ID of test conversations
+data
+└───   EMORY
+       └─── EMORY.pkl
+       └─── EMORY_revised.pkl
+└───   dailydialog
+       └─── Daily.zip
+       └─── Daily_revised.zip
+       └─── daily_.json
+└───   dialog_concept
+       └─── causes_weight_dict_all.json
+       └─── hascontext_weight_dict_all.json
+       └─── isa_dict_all.json
+       └─── isa_weight_dict_all.json
+└───   MELD(Plz check out the following sharing link)
+       └─── MELD_revised https://www.dropbox.com/s/edspgpbgnouh21h/MELD_revised.zip?dl=0
+       └─── MELD https://www.dropbox.com/s/5m6rcg5g2nhys22/MELD.zip?dl=0
+
 
 ```
 
