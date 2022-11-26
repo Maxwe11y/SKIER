@@ -10,11 +10,11 @@ a relation-aware concept representation mechanism to integrate the concepts in d
 
 
 
-<img src="https://github.com/Maxwe11y/SKIER/blob/main/model_cr.png" width = 100% height = 100% div align=center />
+<img src="https://github.com/Maxwe11y/SKIER/blob/main/model_cr.png" width = 90% height = 90% div align=center />
 
 <!-- <figure class="half">
-  <img src="https://github.com/Maxwe11y/SKIER/blob/main/model_cr.png" width = 100% height = 100% div align=left />
-  <img src="https://github.com/Maxwe11y/SKIER/blob/main/model_cr.png" width = 100% height = 100% div align=right />
+  <img src="https://github.com/Maxwe11y/SKIER/blob/main/model_cr.png" width = 90% height = 90% div align=left />
+  <img src="https://github.com/Maxwe11y/SKIER/blob/main/model_cr.png" width = 90% height = 90% div align=right />
 </figure> -->
 
 ### Data DIR Structure
