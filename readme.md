@@ -2,8 +2,8 @@ SKIER: A Symbolic Knowledge Integrated Model for Conversational Emotion Recognit
 =========
 
 ## Overview
->In this repo, we put the data and code of the SKIER model for emotion recognition in conversations(ERC). e propose a sym-
-bolic knowledge integrated model for the ERC task, named SKIER, which effectively leverages symbolic-based dependency knowledge at the utterance level, and commonsense knowledge at the concept level.
+>In this repo, we put the data and code of the SKIER model for emotion recognition in conversations(ERC). 
+>We propose a symbolic knowledge integrated model for the ERC task, named SKIER, which effectively leverages symbolic-based dependency knowledge at the utterance level, and commonsense knowledge at the concept level.
 > We introduce a dialogue relation graph-based contextualizer for SKIER to functionally fuse utterance dependencies. Meanwhile, we propose
 a relation-aware concept representation mechanism to integrate the concepts in different relations.
 > Our method achieves state-of-the-art performance on the ERC task.
