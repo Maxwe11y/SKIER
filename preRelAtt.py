@@ -1,7 +1,3 @@
-'''
-Author: Zhu Luyao, Li Wei
-Email: wei008@e.ntu.edu.sg
-'''
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -140,25 +136,3 @@ class Trans_RelAtt(nn.Module):
             x = x + self.attn(x)
         x = x + self.ff(x)
         return x
-
-
-# att = Attention(3,6, (10, 5), heads=2, dim_head=12)
-# img = torch.randn([1, 50, 3])# b, (ih iw), c
-# res = att(img)
-
-#
-# att_ = RelAtt(3, 6, (2, 4), heads=2, dim_head=12)
-# img_ = torch.randn([1, 3, 2, 4])# b,  c, ih, iw
-# res_ = att_(img_)
-# print(res_.size())
-
-# att_ = RelAtt(3, 1, (1, 8), heads=2, dim_head=12)
-# img_ = torch.randn([1, 3, 1, 8])# b,  c, ih, iw
-# res_ = att_(img_)
-# print(res_.size())
-
-
-# att_ = Transformer(3, 3, (2, 4), heads=2, dim_head=12, downsample=False)
-# img_ = torch.randn([1, 3, 2, 4]) # b,  c, ih, iw
-# res_ = att_(img_)
-# print(res_.size())
