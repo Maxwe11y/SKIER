@@ -21,7 +21,7 @@ a relation-aware concept representation mechanism to integrate the concepts in d
 
 The structure of the data dir is as follows:
 
-```
+
 data
 └───   EMORY
        └─── EMORY.pkl
@@ -40,7 +40,7 @@ data
        └─── MELD https://www.dropbox.com/s/5m6rcg5g2nhys22/MELD.zip?dl=0
 
 
-```
+
 
 ## Uasge
 In order to implement the proposed SKIER framework, you have to download the pre-trained GloVe vectors(glove.6B.100d.txt is the most commonly used vectors in this project).
