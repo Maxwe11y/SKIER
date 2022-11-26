@@ -17,7 +17,7 @@ a relation-aware concept representation mechanism to integrate the concepts in d
   <img src="https://github.com/Maxwe11y/SKIER/blob/main/model_cr.png" width = 100% height = 100% div align=right />
 </figure> -->
 
-### Dataset Structure
+### Data DIR Structure
 
 The structure of the data dir is as follows:
 
