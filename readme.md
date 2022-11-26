@@ -48,7 +48,12 @@ The downloaded GloVe vectors should be placed in glove dir(plz create glove dir 
 
 👉 Check out [GloVe Embeddings](https://nlp.stanford.edu/data/glove.6B.zip) before you run the **code**.
 
-The repo contains four folders, namely Dataset, Joint-EC, Joint-GCN and Joint-Xatt, among which Joint-Xatt and Joint-GCN are
+
+To run this code, plz use the following command (take dailydialogue as an example)
+```
+python3 train_dd.py
+```
+
 the proposed step 1 models (specified in ["ECPEC: Emotion-Cause Pair Extraction in Conversations"]) and Joint-EC is the step 2 model.
 * Dataset folder contains the new ConvECPE dataset.
 * Joint-Xatt folder is the implementation of Joint-Xatt model. You can directly run the Joint_Xatt_l3.py file.
