@@ -59,13 +59,11 @@ class Model(nn.Module):
 
         if self.use_future:
             self.relAtt = RelAtt(1, 1, (self.window, self.input_dim), heads=self.num_head, dim_head=self.input_dim, dropout=Configs.att_dropout)
-            # self.relAtt = RelAtt(self.window, 1, (1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
-            #                      dropout=Configs.att_dropout)
+            
         else:
             self.relAtt = RelAtt(1, 1, (self.slide_win+1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
                              dropout=Configs.att_dropout)
-            # self.relAtt = RelAtt(self.slide_win+1, 1, (1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
-            #                      dropout=Configs.att_dropout)
+           
 
 
         # self.relAtt = Trans_RelAtt(1, 1, (self.window, self.input_dim), heads=self.num_head, dim_head=self.input_dim // 2,
@@ -223,52 +221,13 @@ class Model(nn.Module):
 
             # feature fusion
             if self.num_feature == 3:
-                # feat = torch.cat((out_[utt_idx], hidden_rgcn[utt_idx],
-                #                   relatt_out[utt_idx], symbolic_repr), dim=-1)
 
                 feat_ = torch.stack([out_[utt_idx], hidden_rgcn[utt_idx], symbolic_repr], dim=1).unsqueeze(2)
                 feat = self.CoAtt(feat_).squeeze(1).squeeze(1)
                 output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.linear_out(feat)))), dim=1)
-
-                # if self.use_layer_norm:
-                #     output = torch.log_softmax(self.linear(self.ac_tanh(self.layer_norm(self.dropout(self.fusion(feat))))), dim=1)
-                # else:
-                #     output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
-
-            elif self.num_feature == 4:
-                feat_l = torch.cat((out_[utt_idx], hidden_rgcn[utt_idx], symbolic_repr), dim=-1)
-
-                feat_ = torch.stack([out_[utt_idx], hidden_rgcn[utt_idx], symbolic_repr], dim=1).unsqueeze(2)
-                feat = self.CoAtt(feat_).squeeze(1).squeeze(1)
-
-                feat_x = torch.cat((feat_l, feat), dim=-1)
-
-                output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.linear_out(feat_x)))), dim=1)
-
-                # if self.use_layer_norm:
-                #     output = torch.log_softmax(self.linear(self.ac_tanh(self.layer_norm(self.dropout(self.fusion(feat))))), dim=1)
-                # else:
-                #     output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
-            elif self.num_feature == 2:
-                # feat = torch.cat((out_[utt_idx], hidden_rgcn[utt_idx]), dim=-1)
-
-                feat_ = torch.stack([out_[utt_idx], hidden_rgcn[utt_idx]], dim=1).unsqueeze(2)
-                feat = self.CoAtt(feat_).squeeze(1).squeeze(1)
-
-                output = torch.log_softmax(self.linear(self.ac(self.dropout(self.linear_out(feat)))), dim=1)
-
-                # if self.use_layer_norm:
-                #     output = torch.log_softmax(self.linear(self.ac_tanh(self.layer_norm(self.dropout(self.fusion(feat))))), dim=1)
-                # else:
-                #     output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
-            elif self.num_feature == 1:
-                feat = out_[utt_idx]
-                if self.use_layer_norm:
-                    output = torch.log_softmax(self.linear(self.ac_tanh(self.layer_norm(self.dropout(self.fusion(feat))))), dim=1)
-                else:
-                    output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.fusion(feat)))), dim=1)
+            
             else:
-                # feat = out_[utt_idx] + hidden_rgcn[utt_idx] + relatt_out[utt_idx] + symbolic_repr
+              
                 feat = out_[utt_idx] + hidden_rgcn[utt_idx] + symbolic_repr
                 if self.use_layer_norm:
                     output = torch.log_softmax(self.linear_2(self.ac_tanh(self.layer_norm(self.dropout(self.fusion_2(feat))))), dim=1)
