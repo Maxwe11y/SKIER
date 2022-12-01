@@ -63,11 +63,6 @@ class Model(nn.Module):
         else:
             self.relAtt = RelAtt(1, 1, (self.slide_win+1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
                              dropout=Configs.att_dropout)
-           
-
-
-        # self.relAtt = Trans_RelAtt(1, 1, (self.window, self.input_dim), heads=self.num_head, dim_head=self.input_dim // 2,
-        #                      dropout=Configs.att_dropout)
 
         self.r = nn.Parameter(nn.init.uniform_(torch.zeros(3, self.input_dim)), requires_grad=True)
         self.num_feature = Configs.num_features
@@ -119,9 +114,7 @@ class Model(nn.Module):
                                               self.input_dim))  # nn.ParameterList([nn.Parameter(torch.randn(self.input_dim, self.input_dim)) for _ in range(3)])
 
     def forward(self, inputs, str_src, str_dst, str_edge_type, chunks, label, loss_func, train=True, eps=1e-8):
-        # torch.autograd.set_detect_anomaly(True)
-
-        # len_dial = len(inputs['input_ids'])
+        
         if self.model_type == 'albert':
             out = self.bert_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'],
                                     token_type_ids=inputs['token_type_ids'])
@@ -194,8 +187,6 @@ class Model(nn.Module):
 
                     src_mask = torch.sum(masks, dim=-1) > 0
                     att_score = torch.softmax(self.get_att_masked(dot_sum, src_mask), dim=-1) * src_masks.ne(0)
-                    # att_score = torch.softmax(dot_sum, dim=-1) * src_mask
-                    # sent_mask_sum = torch.sum(src_masks.sum(dim=-1).ne(0)) + eps
                     symbolic_repr = torch.sum(att_score.unsqueeze(2) * src_emb, dim=1)  # /sent_mask_sum
 
 
@@ -226,8 +217,8 @@ class Model(nn.Module):
                 feat = self.CoAtt(feat_).squeeze(1).squeeze(1)
                 output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.linear_out(feat)))), dim=1)
             
-            else:
-              
+            else:              
+
                 feat = out_[utt_idx] + hidden_rgcn[utt_idx] + symbolic_repr
                 if self.use_layer_norm:
                     output = torch.log_softmax(self.linear_2(self.ac_tanh(self.layer_norm(self.dropout(self.fusion_2(feat))))), dim=1)
