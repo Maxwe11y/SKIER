@@ -63,7 +63,6 @@ class Model(nn.Module):
         else:
             self.relAtt = RelAtt(1, 1, (self.slide_win+1, self.input_dim), heads=self.num_head, dim_head=self.input_dim,
                              dropout=Configs.att_dropout)
-           
 
         self.r = nn.Parameter(nn.init.uniform_(torch.zeros(3, self.input_dim)), requires_grad=True)
         self.num_feature = Configs.num_features
@@ -217,9 +216,8 @@ class Model(nn.Module):
                 feat_ = torch.stack([out_[utt_idx], hidden_rgcn[utt_idx], symbolic_repr], dim=1).unsqueeze(2)
                 feat = self.CoAtt(feat_).squeeze(1).squeeze(1)
                 output = torch.log_softmax(self.linear(self.ac_tanh(self.dropout(self.linear_out(feat)))), dim=1)
-
-
-            else:
+            
+            else:              
 
                 feat = out_[utt_idx] + hidden_rgcn[utt_idx] + symbolic_repr
                 if self.use_layer_norm:
