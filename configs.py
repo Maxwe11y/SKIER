@@ -8,7 +8,7 @@ import argparse
 
 def inputconfig_func():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cuda', action='store_false', default=True, help='use GPU acceleration or not')
+    parser.add_argument('--cuda', action='store_false', default=False, help='use GPU acceleration or not')
     parser.add_argument('--lr', type=float, default=0.00005, metavar='LR', help='learning rate')
     parser.add_argument('--base_lr', type=float, default=0.0000005, metavar='BLR', help='learning rate for base model')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
