@@ -72,10 +72,8 @@ pdf={https://ojs.aaai.org/index.php/AAAI/article/view/26541/26313},
 code={https://github.com/Maxwe11y/SKIER},
 year={2023}, 
 month={Jun.}, 
-pages={13121-13129},
-bibtex_show={true},
-dimensions={true},
-selected={true}}
+pages={13121-13129}
+}
 
 ```
 
