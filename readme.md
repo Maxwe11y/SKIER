@@ -60,7 +60,7 @@ Please cite as
 ```bibtex
 
 @article{Li_Zhu_Mao_Cambria_2023,
-title={SKIER: A Symbolic Knowledge Integrated Model for Conversational Emotion Recognition}, 
+title={{SKIER}: A Symbolic Knowledge Integrated Model for Conversational Emotion Recognition}, 
 volume={37}, 
 url={https://ojs.aaai.org/index.php/AAAI/article/view/26541}, 
 DOI={10.1609/aaai.v37i11.26541}, 
