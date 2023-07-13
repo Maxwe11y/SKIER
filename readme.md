@@ -55,6 +55,27 @@ python3 train_dd.py --model-type roberta_large --att_dropout 0.5 --output_dim 10
 ```
 
 
-###
-Detailed description of this project will come soon...
+## Citation
+Please cite as
+```bibtex
+
+@article{Li_Zhu_Mao_Cambria_2023,
+abbr={AAAI},
+title={SKIER: A Symbolic Knowledge Integrated Model for Conversational Emotion Recognition}, 
+volume={37}, 
+url={https://ojs.aaai.org/index.php/AAAI/article/view/26541}, 
+DOI={10.1609/aaai.v37i11.26541}, 
+number={11}, 
+journal={Proceedings of the AAAI Conference on Artificial Intelligence}, 
+author={Li, Wei and Zhu, Luyao and Mao, Rui and Cambria, Erik}, 
+pdf={https://ojs.aaai.org/index.php/AAAI/article/view/26541/26313},
+code={https://github.com/Maxwe11y/SKIER},
+year={2023}, 
+month={Jun.}, 
+pages={13121-13129},
+bibtex_show={true},
+dimensions={true},
+selected={true}}
+
+```
 
